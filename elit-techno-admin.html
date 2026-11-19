@@ -96,7 +96,7 @@ if(current==='tickets'){rows=data.map(x=>`<tr><td><b>${esc(x.name)}</b><small>${
 if(!rows){document.getElementById('table').innerHTML=`<div class="empty">${at('empty')}</div>`;return}
 let heads=current==='orders'?`<th>${at('request')}</th><th>${at('client')}</th><th>${at('delivery')}</th><th>${at('items')}</th><th>${at('amount')}</th>`:current==='users'?`<th>${at('name')}</th><th>${at('age')}</th><th>${at('date')}</th><th>${at('status')}</th>`:`<th>${at('client')}</th><th>${at('phone')}</th><th>${at('message')}</th><th>${at('action')}</th>`;
 document.getElementById('table').innerHTML=`<table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table>`}
-const API_URL='http://localhost:3000';
+const API_URL='https://elit-techno.onrender.com';
 let selectedNewPhotos=[];let catalogCache=[];
 function getCatalog(){return catalogCache}
 
