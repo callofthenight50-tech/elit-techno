@@ -96,17 +96,62 @@ if(current==='tickets'){rows=data.map(x=>`<tr><td><b>${esc(x.name)}</b><small>${
 if(!rows){document.getElementById('table').innerHTML=`<div class="empty">${at('empty')}</div>`;return}
 let heads=current==='orders'?`<th>${at('request')}</th><th>${at('client')}</th><th>${at('delivery')}</th><th>${at('items')}</th><th>${at('amount')}</th>`:current==='users'?`<th>${at('name')}</th><th>${at('age')}</th><th>${at('date')}</th><th>${at('status')}</th>`:`<th>${at('client')}</th><th>${at('phone')}</th><th>${at('message')}</th><th>${at('action')}</th>`;
 document.getElementById('table').innerHTML=`<table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table>`}
-let selectedNewPhotos=[];
-function getCatalog(){try{return JSON.parse(localStorage.getItem('et_products')||'[]')}catch(e){return []}}
-function loadProductOptions(){let base=adminProductSeed;let saved=getCatalog();let merged=base.map(p=>({...p,...(saved.find(x=>x.id===p.id)||{})}));const sel=document.getElementById('productSelect');const previous=sel.value;sel.innerHTML=merged.map(p=>`<option value="${Number(p.id)}">${esc(p.brand)} — ${esc(p.name)}</option>`).join('');if(previous&&merged.some(p=>String(p.id)===previous))sel.value=previous;document.getElementById('productCount').textContent=merged.length+' товаров';renderProductEditor()}
+const API_URL='http://localhost:3000';
+let selectedNewPhotos=[];let catalogCache=[];
+function getCatalog(){return catalogCache}
+
+async function loadProductOptions(){
+    try{
+        const response=await fetch(API_URL+'/api/products');
+        if(!response.ok)throw new Error('Ошибка сервера');
+        catalogCache=await response.json();
+
+        let base=adminProductSeed;
+        let merged=base.map(p=>({...p,...(catalogCache.find(x=>x.id===p.id)||{})}));
+
+        const sel=document.getElementById('productSelect');
+        const previous=sel.value;
+
+        sel.innerHTML=merged.map(p=>`<option value="${Number(p.id)}">${esc(p.brand)} — ${esc(p.name)}</option>`).join('');
+
+        if(previous&&merged.some(p=>String(p.id)===previous))sel.value=previous;
+
+        document.getElementById('productCount').textContent=merged.length+' товаров';
+        renderProductEditor();
+    }catch(e){
+        alert('Не удалось загрузить товары с сервера: '+e.message);
+    }
+}{let base=adminProductSeed;let saved=getCatalog();let merged=base.map(p=>({...p,...(saved.find(x=>x.id===p.id)||{})}));const sel=document.getElementById('productSelect');const previous=sel.value;sel.innerHTML=merged.map(p=>`<option value="${Number(p.id)}">${esc(p.brand)} — ${esc(p.name)}</option>`).join('');if(previous&&merged.some(p=>String(p.id)===previous))sel.value=previous;document.getElementById('productCount').textContent=merged.length+' товаров';renderProductEditor()}
 function currentAdminProduct(){const id=Number(document.getElementById('productSelect').value);let saved=getCatalog();let p=saved.find(x=>x.id===id);if(p)return p;return adminProductSeed.find(x=>x.id===id)||null}
 function renderProductEditor(){const p=currentAdminProduct();const host=document.getElementById('savedPhotoPreview');if(!p){host.innerHTML='<div class="empty">Каталог пока не передан в админ-панель. Откройте магазин и админку с одного адреса после запуска.</div>';return;}const imgs=Array.isArray(p.images)&&p.images.length?p.images:[p.img].filter(Boolean);host.innerHTML=imgs.map((src,i)=>`<div style="width:112px;border:1px solid #e8eaee;border-radius:12px;padding:7px"><img src="${src}" style="width:100%;height:90px;object-fit:contain;background:#f5f6f8;border-radius:8px"><button type="button" class="btn" style="width:100%;margin-top:7px;background:#7c2930" onclick="removeProductPhoto(${i})">Удалить</button><small style="display:block;text-align:center;color:#818792;margin-top:5px">Фото ${i+1}</small></div>`).join('')||'<div class="empty">Фотографий пока нет.</div>'}
 function previewNewPhotos(e){selectedNewPhotos=Array.from(e.target.files||[]);const host=document.getElementById('newPhotoPreview');host.innerHTML=selectedNewPhotos.map(f=>`<div style="width:86px"><div style="font-size:10px;overflow-wrap:anywhere;color:#555">${esc(f.name)}</div></div>`).join('');}
 function resetNewPhotos(){selectedNewPhotos=[];document.getElementById('productPhotos').value='';document.getElementById('newPhotoPreview').innerHTML=''}
 function compressPhoto(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const max=1200,scale=Math.min(1,max/Math.max(img.width,img.height));const canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);resolve(canvas.toDataURL('image/jpeg',0.78))};img.onerror=reject;img.src=reader.result};reader.onerror=reject;reader.readAsDataURL(file)})}
-async function persistProduct(p){let list=getCatalog();const i=list.findIndex(x=>x.id===p.id);if(i>=0)list[i]=p;else list.push(p);try{localStorage.setItem('et_products',JSON.stringify(list));return true}catch(e){alert('Не удалось сохранить: хранилище браузера заполнено. Уменьшите число фотографий.');return false}}
+          async function persistProduct(p){
+    try{
+        const response=await fetch(API_URL+'/api/products/'+p.id,{
+            method:'PUT',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(p)
+        });
+
+        if(!response.ok)throw new Error('Ошибка сохранения');
+
+        const saved=await response.json();
+        const index=catalogCache.findIndex(x=>x.id===p.id);
+
+        if(index>=0)catalogCache[index]=saved;
+        else catalogCache.push(saved);
+
+        return true;
+    }catch(e){
+        alert('Не удалось сохранить товар: '+e.message);
+        return false;
+    }
+}{let list=getCatalog();const i=list.findIndex(x=>x.id===p.id);if(i>=0)list[i]=p;else list.push(p);try{localStorage.setItem('et_products',JSON.stringify(list));return true}catch(e){alert('Не удалось сохранить: хранилище браузера заполнено. Уменьшите число фотографий.');return false}}
 async function saveProductPhotos(){const p=currentAdminProduct();if(!p)return;try{const added=[];for(const f of selectedNewPhotos){if(!f.type.startsWith('image/'))continue;added.push(await compressPhoto(f))}const old=Array.isArray(p.images)&&p.images.length?p.images:[p.img].filter(Boolean);const images=[...old,...added];if(!images.length){alert('Выберите хотя бы одну фотографию.');return;}p.images=images;p.img=images[0];if(await persistProduct(p)){resetNewPhotos();renderProductEditor();alert('Фотографии сохранены. Обновите страницу магазина для проверки.')}}catch(e){alert('Не удалось обработать одну из фотографий. Попробуйте JPG или PNG.')}}
 async function removeProductPhoto(index){const p=currentAdminProduct();if(!p)return;const imgs=Array.isArray(p.images)&&p.images.length?p.images:[p.img].filter(Boolean);imgs.splice(index,1);p.images=imgs;if(imgs.length)p.img=imgs[0];if(await persistProduct(p))renderProductEditor()}
 window.addEventListener('storage',e=>{if(e.key==='et_products'){const manager=document.getElementById('productManager');if(manager&&manager.style.display!=='none')loadProductOptions();}});
 document.getElementById('adminLang').addEventListener('change',e=>{adminLang=e.target.value;localStorage.setItem('et_lang',adminLang);applyAdminLang()});applyAdminLang();renderTable();
 </script></body></html>
+
