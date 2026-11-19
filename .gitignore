@@ -1,0 +1,5 @@
+*.backup
+export-products.js
+.env
+node_modules/
+
